@@ -35,4 +35,8 @@ public class Project
 		_Creator = creator;
 	}
 	
+	public void addImage(ProjectImage image)
+	{
+		_Images.add(image);
+	}
 }
