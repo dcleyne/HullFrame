@@ -11,6 +11,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
+import java.io.File;
 import java.util.HashMap;
 
 import javax.swing.DefaultDesktopManager;
@@ -18,6 +19,7 @@ import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JDesktopPane;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
@@ -28,6 +30,8 @@ import javax.swing.JToolBar;
 import javax.swing.SwingConstants;
 import javax.swing.UIManager;
 
+import hullframe.project.Project;
+import hullframe.project.ProjectManager;
 import hullframe.ui.InternalFrameManager;
 import hullframe.util.ExceptionUtil;
 import hullframe.util.PropertyUtil;
@@ -44,6 +48,9 @@ public class HullFrame extends JFrame implements ActionListener, WindowListener
 	private static final String ITEM_OPEN_PROJECT = "OpenProject";
 	private static final String ITEM_CLOSE_PROJECT = "CloseProject";
 	private static final String ITEM_EXIT = "Exit";
+	
+	private static final String ITEM_PROJECT_ADD_IMAGE = "ProjectAddImage";
+	private static final String ITEM_PROJECT_PROPERTIES = "ProjectProperties";
 	
 	
     private JDesktopPane _MainPane = new JDesktopPane();
@@ -179,9 +186,12 @@ public class HullFrame extends JFrame implements ActionListener, WindowListener
         
         addMenuItem(menu, "New Project", ITEM_NEW_PROJECT, 'N');
         addMenuItem(menu, "Open Project", ITEM_OPEN_PROJECT, 'O');
+        menu.addSeparator();
         addMenuItem(menu, "Save Project", ITEM_SAVE_PROJECT, 'S');
         addMenuItem(menu, "Save Project As", ITEM_SAVE_PROJECT_AS, 'A');
+        menu.addSeparator();
         addMenuItem(menu, "Close Project", ITEM_CLOSE_PROJECT, 'C');
+        menu.addSeparator();
         addMenuItem(menu, "Exit", ITEM_EXIT, 'X');        
     }
     
@@ -195,20 +205,25 @@ public class HullFrame extends JFrame implements ActionListener, WindowListener
         mainMenu.add(menu);
     }
     
-    private void addSetupMenu(JMenuBar mainMenu)
+    private void addProjectMenu(JMenuBar mainMenu)
     {   //"Setup" menu
-    	JMenu menu = new JMenu("Setup");
-        menu.setActionCommand("Setup");
+    	JMenu menu = new JMenu("Project");
+        menu.setActionCommand("Project");
         menu.setBorderPainted(false);
-        menu.setMnemonic( (int)'S');
+        menu.setMnemonic( (int)'P');
         mainMenu.add(menu);
+        
+        addMenuItem(menu, "Add Image", ITEM_PROJECT_ADD_IMAGE, 'I');
+        menu.addSeparator();
+        addMenuItem(menu, "Properties", ITEM_PROJECT_PROPERTIES, 'P');
+        
     }
     
     private void menuAddItems(JMenuBar hmenu) 
     {
     	addFileMenu(hmenu);
     	addToolsMenu(hmenu);
-    	addSetupMenu(hmenu);
+    	addProjectMenu(hmenu);
         //
         // "Help" menu
         //
@@ -352,24 +367,166 @@ public class HullFrame extends JFrame implements ActionListener, WindowListener
         setApplicationState();
 	}
 	
+	private boolean saveAndCloseProject()
+	{
+		if (_ApplicationState.isProjectOpen())
+		{
+			if (_ApplicationState.isProjectDirty())
+			{
+				//Ask the user if they want to save and close
+				int result = JOptionPane.showConfirmDialog(this, "The current project has changes. Do you want to save the changes?", "Save and Close Project", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE );
+				if (result == JOptionPane.YES_OPTION)
+				{
+					saveProject();
+				}
+				else if (result == JOptionPane.CANCEL_OPTION)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+	
+	private void setCaption()
+	{
+		if (_ApplicationState.isProjectOpen())
+		{
+			if (_ApplicationState.isProjectDirty())
+			{
+				setTitle(_Caption + " : " + _ApplicationState.getCurrentProject().getName() + "*");
+			}
+			else
+			{
+				setTitle(_Caption + " : " + _ApplicationState.getCurrentProject().getName());				
+			}
+		}
+		else
+		{
+			setTitle(_Caption);
+		}
+	}
+	
+	private void setProjectOpen(Project p)
+	{
+		_ApplicationState.setProjectOpen(p);
+		
+		setCaption();
+	}
+	
+	private void setProjectClosed()
+	{
+		_ApplicationState.setProjectClosed();
+		
+		setCaption();		
+	}
+	
+	private void setProjectDirty()
+	{
+		_ApplicationState.setProjectDirty();
+		
+		setCaption();
+	}
+	
+	private void setProjectClean()
+	{
+		_ApplicationState.setProjectClean();
+		
+		setCaption();
+	}
+	
 	private void newProject()
 	{
+		// Do something with any open projects
+		if (!saveAndCloseProject())
+			return;
 		
+		try
+		{
+			final JFileChooser fc = new JFileChooser();
+			fc.setFileSelectionMode(JFileChooser.FILES_ONLY);		
+			if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION)
+			{
+				File selectedFile = fc.getSelectedFile();
+				if (ProjectManager.createEmptyProjectFile(selectedFile))
+				{
+					Project newProject = ProjectManager.loadProject(selectedFile);
+					if (newProject != null)
+					{
+						setProjectOpen(newProject);
+					}
+					else
+					{
+						JOptionPane.showConfirmDialog(this, "Unable to create New Project");
+					}
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			JOptionPane.showConfirmDialog(this, ExceptionUtil.getExceptionStackTrace(ex), "Unable to create New Project", JOptionPane.OK_OPTION);			
+		}
 	}
 	
 	private void openProject()
 	{
+		// Do something with any open projects
+		if (!saveAndCloseProject())
+			return;
 		
+		try
+		{
+			final JFileChooser fc = new JFileChooser();
+			fc.setFileSelectionMode(JFileChooser.FILES_ONLY);
+			if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION)
+			{
+				File selectedFile = fc.getSelectedFile();
+				if (!selectedFile.exists())
+				{
+					ProjectManager.createEmptyProjectFile(selectedFile);
+				}
+				openProject(selectedFile);
+			}
+		}
+		catch (Exception ex)
+		{
+			JOptionPane.showConfirmDialog(this, ExceptionUtil.getExceptionStackTrace(ex), "Unable to open Project", JOptionPane.OK_OPTION);						
+		}
+	}
+	
+	private void openProject(File fileToOpen) throws Exception
+	{
+		
+		Project newProject = ProjectManager.loadProject(fileToOpen);
+		if (newProject != null)
+		{
+			setProjectOpen(newProject);
+		}
+		else
+		{
+			JOptionPane.showConfirmDialog(this, "Unable to open Project");									
+		}
 	}
 	
 	private void closeProject()
 	{
-		
+		if (saveAndCloseProject())
+		{
+			setProjectClosed();
+		}
 	}
 	
 	private void saveProject()
 	{
-		
+		try
+		{
+			ProjectManager.storeProject(_ApplicationState.getCurrentProject());
+			setProjectClean();
+		}
+		catch (Exception ex)
+		{
+			JOptionPane.showConfirmDialog(this, ExceptionUtil.getExceptionStackTrace(ex), "Unable to save Project", JOptionPane.OK_OPTION);									
+		}
 	}
 	
 	private void saveProjectAs()
@@ -419,18 +576,21 @@ public class HullFrame extends JFrame implements ActionListener, WindowListener
 		setControlState(ITEM_OPEN_PROJECT, true, true);
 		setControlState(ITEM_ABOUT, true, true);
 
+		setControlState(ITEM_SAVE_PROJECT_AS, _ApplicationState.isProjectOpen(), true);
+		setControlState(ITEM_CLOSE_PROJECT, _ApplicationState.isProjectOpen(), true);
+		
 		if (_ApplicationState.isProjectOpen())
 		{
 			setControlState(ITEM_SAVE_PROJECT, _ApplicationState.isProjectDirty(), true);
-			setControlState(ITEM_SAVE_PROJECT_AS, true, true);
-			setControlState(ITEM_CLOSE_PROJECT, true, true);
 		}
 		else
 		{
 			setControlState(ITEM_SAVE_PROJECT, false, true);
-			setControlState(ITEM_SAVE_PROJECT_AS, false, true);
-			setControlState(ITEM_CLOSE_PROJECT, false, true);
 		}
+
+		setControlState(ITEM_PROJECT_ADD_IMAGE, _ApplicationState.isProjectOpen(), true);
+		setControlState(ITEM_PROJECT_PROPERTIES, _ApplicationState.isProjectOpen(), true);
+
 	}
 	
 	private void setControlState(String command, boolean enabled, boolean visible)
@@ -453,20 +613,25 @@ public class HullFrame extends JFrame implements ActionListener, WindowListener
 	{
 		private boolean _ProjectOpen = false;
 		private boolean _ProjectDirty = false;
+		private Project _CurrentProject = null;
 		
 		public boolean isProjectOpen()
 		{
 			return _ProjectOpen;
 		}
 		
-		public void setProjectOpen()
+		public void setProjectOpen(Project openProject)
 		{
 			_ProjectOpen = true;
+			_CurrentProject = openProject;
+			_ProjectDirty = false;
 		}
 		
 		public void setProjectClosed()
 		{
 			_ProjectOpen = false;
+			_CurrentProject = null;
+			_ProjectDirty = false;
 		}
 		
 		public boolean isProjectDirty()
@@ -484,5 +649,9 @@ public class HullFrame extends JFrame implements ActionListener, WindowListener
 			_ProjectDirty = false;
 		}
 		
+		public Project getCurrentProject()
+		{
+			return _CurrentProject;
+		}
 	}
 }
