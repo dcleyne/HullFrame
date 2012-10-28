@@ -2,14 +2,14 @@ package hullframe.project;
 
 import hullframe.util.ExceptionUtil;
 
-import java.io.BufferedInputStream;
+
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
+import java.util.Calendar;
 import java.util.Enumeration;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
@@ -17,7 +17,9 @@ import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
+import org.jdom.Document;
 import org.jdom.Element;
+import org.jdom.input.SAXBuilder;
 import org.jdom.output.Format;
 import org.jdom.output.XMLOutputter;
 
@@ -44,9 +46,8 @@ public class ProjectManager
 		return true;
 	}
 	
-	private static File storeProjectValues(Project p) throws Exception
+	private static void storeProjectValues(Project p, JarOutputStream target) throws Exception
 	{
-		Path tempFile = Files.createTempFile("HullFrame", "xml", new FileAttribute<?>[] {});
         org.jdom.Document doc = new org.jdom.Document();
         org.jdom.Element rootElement = new org.jdom.Element("HullFrame");
         
@@ -56,12 +57,35 @@ public class ProjectManager
         projectElement.setAttribute("Description",p.getDescription());
         projectElement.setAttribute("Creator", p.getCreator());
         
+        rootElement.addContent(projectElement);
         doc.addContent(rootElement);
         
-		XMLOutputter out = new XMLOutputter(Format.getPrettyFormat());
-		out.output(doc, new FileOutputStream(tempFile.toString()));
+		JarEntry entry = new JarEntry("HullFrame.xml");
+		entry.setTime(Calendar.getInstance().getTimeInMillis());
+		target.putNextEntry(entry);
 		
-		return new File(tempFile.toString());
+		XMLOutputter out = new XMLOutputter(Format.getPrettyFormat());
+		out.output(doc, target);
+	}
+	
+	private static void loadProjectValues(InputStream inStream, Project p) throws Exception
+	{
+		if (inStream == null)
+			throw new Exception("Invalid Project file");
+		
+		SAXBuilder b = new SAXBuilder();
+		Document doc = b.build(inStream);
+
+		org.jdom.Element rootElement = doc.getRootElement();
+		org.jdom.Element projectElement = rootElement.getChild("Project");
+		if (projectElement != null)
+		{
+			p.setName(projectElement.getAttributeValue("Name"));
+			p.setDescription(projectElement.getAttributeValue("Description"));
+			p.setCreator(projectElement.getAttributeValue("Creator"));
+		}
+		else
+			throw new Exception("Invalid project file");
 	}
 
 	public static boolean storeProject(Project p) throws Exception
@@ -74,7 +98,7 @@ public class ProjectManager
 			JarOutputStream target = new JarOutputStream(new FileOutputStream(
 					p.getFilename()), manifest);
 
-			addFileToJar(storeProjectValues(p), "HullFrame.xml", target);
+			storeProjectValues(p, target);
 
 			target.close();
 		} catch (Exception ex)
@@ -100,10 +124,20 @@ public class ProjectManager
 
 			jarFile = new JarFile(file);
 			Enumeration<JarEntry> entries = jarFile.entries();
+			
+			JarEntry projectXMLEntry = jarFile.getJarEntry("HullFrame.xml");
+			if (projectXMLEntry != null)
+			{
+				loadProjectValues(jarFile.getInputStream(projectXMLEntry), p);
+			}
+			else
+				throw new Exception("Invalid project file");
+			
 			while (entries.hasMoreElements())
 			{
 				JarEntry entry = (JarEntry) entries.nextElement();
 				System.out.println(entry.getName());
+				
 			}
 
 			p.setTempLocation(tempDir);
@@ -120,6 +154,7 @@ public class ProjectManager
 		}
 	}
 
+	/*
 	private static void addFileToJar(File source, String fileName, JarOutputStream target)
 			throws IOException
 	{
@@ -163,4 +198,5 @@ public class ProjectManager
 				in.close();
 		}
 	}
+	*/
 }
