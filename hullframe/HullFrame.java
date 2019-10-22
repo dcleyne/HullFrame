@@ -421,6 +421,7 @@ public class HullFrame extends JFrame implements ActionListener, WindowListener
 		setCaption();		
 	}
 	
+	@SuppressWarnings("unused")
 	private void setProjectDirty()
 	{
 		_ApplicationState.setProjectDirty();

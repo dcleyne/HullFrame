@@ -31,7 +31,8 @@ import javax.swing.event.InternalFrameListener;
 public class InternalFrameManager implements InternalFrameListener
 {
     private JFrame _ParentFrame;
-    private JDesktopPane _DesktopPane;
+    @SuppressWarnings("unused")
+	private JDesktopPane _DesktopPane;
 
 
     private Vector<JInternalFrame> _ImageFrames = new Vector<JInternalFrame>();
